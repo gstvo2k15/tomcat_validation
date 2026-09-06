@@ -1,0 +1,88 @@
+---
+- name: Verify selected JDK executable before restart
+  ansible.builtin.command: "{{ selected_java_home }}/bin/java -version"
+  register: selected_java_version
+  changed_when: false
+
+- name: Restart Tomcat service
+  ansible.builtin.systemd:
+    name: "{{ selected_tomcat_service }}"
+    state: restarted
+
+- name: Wait for service to become active
+  ansible.builtin.command: "systemctl is-active {{ selected_tomcat_service }}"
+  register: tomcat_active
+  changed_when: false
+  retries: 12
+  delay: 5
+  until: tomcat_active.stdout == 'active'
+
+- name: Obtain Tomcat MainPID
+  ansible.builtin.command: "systemctl show -p MainPID --value {{ selected_tomcat_service }}"
+  register: tomcat_mainpid
+  changed_when: false
+  failed_when: tomcat_mainpid.stdout | int <= 0
+
+- name: Resolve Java executable used by Tomcat process
+  ansible.builtin.command: "readlink -f /proc/{{ tomcat_mainpid.stdout }}/exe"
+  register: tomcat_process_java
+  changed_when: false
+
+- name: Ensure Tomcat uses selected JDK
+  ansible.builtin.assert:
+    that:
+      - tomcat_process_java.stdout == selected_java_home ~ '/bin/java'
+    fail_msg: >-
+      Tomcat is running with {{ tomcat_process_java.stdout }}, expected
+      {{ selected_java_home }}/bin/java.
+
+- name: Validate Tomcat HTTP endpoint
+  ansible.builtin.uri:
+    url: "{{ tomcat_validation_url }}"
+    method: GET
+    status_code: "{{ tomcat_valid_http_codes }}"
+    return_content: false
+  register: tomcat_http_result
+  retries: "{{ tomcat_http_retries }}"
+  delay: "{{ tomcat_http_delay }}"
+  until: tomcat_http_result.status in tomcat_valid_http_codes
+
+- name: Locate probable Tomcat log files
+  ansible.builtin.find:
+    paths:
+      - "{{ selected_tomcat_home }}/logs"
+    patterns:
+      - "catalina.out"
+      - "*.log"
+    file_type: file
+    recurse: false
+  register: tomcat_logs
+  failed_when: false
+
+- name: Scan recent logs for critical startup errors
+  ansible.builtin.shell: |
+    set -o pipefail
+    tail -n 300 {{ item.path | quote }} | grep -E {{ tomcat_log_error_regex | quote }} || true
+  args:
+    executable: /bin/bash
+  loop: "{{ tomcat_logs.files | default([]) }}"
+  register: tomcat_log_scan
+  changed_when: false
+  when: tomcat_log_error_regex | length > 0
+
+- name: Consolidate critical log findings
+  ansible.builtin.set_fact:
+    tomcat_log_errors: >-
+      {{
+        tomcat_log_scan.results | default([])
+        | selectattr('stdout', 'defined')
+        | map(attribute='stdout')
+        | reject('equalto', '')
+        | list
+      }}
+
+- name: Fail if critical startup errors were found
+  ansible.builtin.assert:
+    that:
+      - tomcat_log_errors | length == 0
+    fail_msg: "Critical startup errors found in Tomcat logs: {{ tomcat_log_errors }}"

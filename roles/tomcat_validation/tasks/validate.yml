@@ -1,0 +1,51 @@
+---
+- name: Validate combined survey choice
+  ansible.builtin.assert:
+    that:
+      - tomcat_jdk_choice is defined
+      - tomcat_jdk_choice in survey_choice_matrix
+    fail_msg: >-
+      Invalid or missing tomcat_jdk_choice. Valid choices:
+      {{ survey_choice_matrix.keys() | list | join(', ') }}
+
+- name: Derive Tomcat and JDK from survey
+  ansible.builtin.set_fact:
+    selected_tomcat_major: "{{ survey_choice_matrix[tomcat_jdk_choice].tomcat }}"
+    selected_jdk_major: "{{ survey_choice_matrix[tomcat_jdk_choice].jdk }}"
+
+- name: Validate supported operating system
+  ansible.builtin.assert:
+    that:
+      - ansible_os_family == 'RedHat'
+      - ansible_distribution_major_version in ['8', '9']
+    fail_msg: >-
+      {{ inventory_hostname }} must be RHEL 8 or RHEL 9.
+      Detected {{ ansible_distribution }} {{ ansible_distribution_major_version }}.
+
+- name: Validate inventory expected RHEL declaration
+  ansible.builtin.assert:
+    that:
+      - expected_rhel_major is defined
+      - expected_rhel_major | string in ['8', '9']
+      - ansible_distribution_major_version | string == expected_rhel_major | string
+    fail_msg: >-
+      Inventory expects RHEL {{ expected_rhel_major | default('UNDEFINED') }} for
+      {{ inventory_hostname }}, but facts detected
+      {{ ansible_distribution }} {{ ansible_distribution_major_version }}.
+
+- name: Validate Tomcat JDK compatibility
+  ansible.builtin.assert:
+    that:
+      - selected_jdk_major | int >= tomcat_min_java[selected_tomcat_major] | int
+    fail_msg: >-
+      Tomcat {{ selected_tomcat_major }} requires Java
+      {{ tomcat_min_java[selected_tomcat_major] }} or newer;
+      JDK {{ selected_jdk_major }} is invalid.
+
+- name: Resolve packages repository and local platform policy
+  ansible.builtin.set_fact:
+    validation_platform_supported: >-
+      {{ ansible_distribution_major_version in jdk_allowed_rhel[selected_jdk_major] }}
+    selected_tomcat_package: "{{ tomcat_package_by_major[selected_tomcat_major] }}"
+    selected_jdk_package: "{{ jdk_package_by_major[selected_jdk_major] }}"
+    selected_artifactory_repo: "{{ artifactory_repo_by_rhel[ansible_distribution_major_version] }}"

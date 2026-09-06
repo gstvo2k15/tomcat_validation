@@ -1,0 +1,48 @@
+---
+- name: Query Artifactory file list
+  ansible.builtin.uri:
+    url: "{{ artifactory_base_url }}/api/storage/{{ selected_artifactory_repo }}?list&deep=1&listFolders=0"
+    method: GET
+    headers: "{{ artifactory_headers }}"
+    validate_certs: "{{ artifactory_validate_certs }}"
+    return_content: true
+    status_code: 200
+  register: artifactory_file_list
+  no_log: "{{ artifactory_headers | length > 0 }}"
+
+- name: Collect matching RPM candidates
+  ansible.builtin.set_fact:
+    tomcat_artifact_candidates: >-
+      {{
+        artifactory_file_list.json.files | default([])
+        | selectattr('uri', 'search', '/' ~ selected_tomcat_package ~ '-.*\\.rpm$')
+        | list
+      }}
+    jdk_artifact_candidates: >-
+      {{
+        artifactory_file_list.json.files | default([])
+        | selectattr('uri', 'search', '/' ~ selected_jdk_package ~ '-.*\\.rpm$')
+        | list
+      }}
+
+- name: Ensure matching RPMs exist
+  ansible.builtin.assert:
+    that:
+      - tomcat_artifact_candidates | length > 0
+      - jdk_artifact_candidates | length > 0
+    fail_msg: >-
+      Missing RPMs in Artifactory repository {{ selected_artifactory_repo }}.
+      Tomcat={{ selected_tomcat_package }} matches={{ tomcat_artifact_candidates | length }};
+      JDK={{ selected_jdk_package }} matches={{ jdk_artifact_candidates | length }}.
+
+- name: Select newest artifacts by Artifactory lastModified
+  ansible.builtin.set_fact:
+    selected_tomcat_artifact: "{{ (tomcat_artifact_candidates | sort(attribute='lastModified')) | last }}"
+    selected_jdk_artifact: "{{ (jdk_artifact_candidates | sort(attribute='lastModified')) | last }}"
+
+- name: Build artifact names and URLs
+  ansible.builtin.set_fact:
+    selected_tomcat_rpm_name: "{{ selected_tomcat_artifact.uri | basename }}"
+    selected_jdk_rpm_name: "{{ selected_jdk_artifact.uri | basename }}"
+    selected_tomcat_rpm_url: "{{ artifactory_base_url }}/{{ selected_artifactory_repo }}{{ selected_tomcat_artifact.uri }}"
+    selected_jdk_rpm_url: "{{ artifactory_base_url }}/{{ selected_artifactory_repo }}{{ selected_jdk_artifact.uri }}"

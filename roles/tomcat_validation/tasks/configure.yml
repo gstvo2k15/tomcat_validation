@@ -1,0 +1,42 @@
+---
+- name: Validate current JAVA HOME definition count
+  ansible.builtin.shell: |
+    grep -nE '^[[:space:]]*(export[[:space:]]+)?JAVA_HOME=' {{ tomcat_setenv | quote }} || true
+  register: existing_java_home_lines
+  changed_when: false
+
+- name: Fail on duplicate JAVA HOME definitions
+  ansible.builtin.assert:
+    that:
+      - existing_java_home_lines.stdout_lines | length <= 1
+    fail_msg: >-
+      Multiple JAVA_HOME definitions found in {{ tomcat_setenv }}:
+      {{ existing_java_home_lines.stdout }}
+
+- name: Set JAVA HOME in setenv sh
+  ansible.builtin.lineinfile:
+    path: "{{ tomcat_setenv }}"
+    regexp: '^\s*(export\s+)?JAVA_HOME='
+    line: 'export JAVA_HOME="{{ selected_java_home }}"'
+    insertafter: EOF
+    backup: "{{ setenv_backup }}"
+  register: java_home_edit
+
+- name: Set HOME in setenv sh
+  ansible.builtin.lineinfile:
+    path: "{{ tomcat_setenv }}"
+    regexp: '^\s*(export\s+)?HOME='
+    line: 'export HOME="{{ selected_tomcat_home }}"'
+    insertafter: EOF
+
+- name: Set CATALINA HOME in setenv sh
+  ansible.builtin.lineinfile:
+    path: "{{ tomcat_setenv }}"
+    regexp: '^\s*(export\s+)?CATALINA_HOME='
+    line: 'export CATALINA_HOME="{{ selected_tomcat_home }}"'
+    insertafter: EOF
+  when: manage_catalina_home
+
+- name: Save setenv backup path
+  ansible.builtin.set_fact:
+    setenv_backup_file: "{{ java_home_edit.backup_file | default('not-created') }}"

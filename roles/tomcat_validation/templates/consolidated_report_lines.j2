@@ -1,0 +1,41 @@
+{% set first = certification_reports | first %}
+{% set overall = 'FAIL' if certification_failed_hosts | length > 0 else ('PASS' if certification_passed_hosts | length > 0 else 'NOT_APPLICABLE') %}
+- "======================================================================"
+- "                 TOMCAT / JDK CERTIFICATION REPORT"
+- "======================================================================"
+- "Requested             : {{ first.requested }}"
+- "Overall result        : {{ overall }}"
+- "----------------------------------------------------------------------"
+{% for r in certification_reports %}
+- "HOST                  : {{ r.host }}"
+- "Expected platform     : RHEL {{ r.expected_rhel }}"
+- "Detected platform     : {{ r.detected_distribution }} {{ r.detected_rhel }}"
+- "Host result           : {{ r.result }}"
+{% if r.result == 'NOT_APPLICABLE' %}
+- "Reason                : {{ r.failure | replace('\n', ' ') }}"
+{% else %}
+- "Artifactory           : {{ r.artifactory_url }}"
+- "Tomcat RPM            : {{ r.tomcat_rpm }}"
+- "JDK RPM               : {{ r.jdk_rpm }}"
+- "Installed Tomcat      : {{ r.installed_tomcat }}"
+- "Installed JDK         : {{ r.installed_jdk }}"
+- "JAVA_HOME             : {{ r.java_home }}"
+- "Tomcat HOME           : {{ r.tomcat_home }}"
+- "setenv.sh             : {{ r.setenv }}"
+- "setenv backup         : {{ r.setenv_backup }}"
+- "Systemd service       : {{ r.service }}"
+- "Service state         : {{ r.service_state }}"
+- "MainPID               : {{ r.main_pid }}"
+- "Runtime JVM           : {{ r.process_java }}"
+- "HTTP status           : {{ r.http_status }}"
+{% if r.failure | length > 0 %}
+- "Failure               : {{ r.failure | replace('\n', ' ') | replace('"', "'") }}"
+{% endif %}
+{% endif %}
+- "----------------------------------------------------------------------"
+{% endfor %}
+- "PASS hosts            : {{ certification_passed_hosts | map(attribute='host') | join(', ') if certification_passed_hosts else 'none' }}"
+- "FAILED hosts          : {{ certification_failed_hosts | map(attribute='host') | join(', ') if certification_failed_hosts else 'none' }}"
+- "N/A hosts             : {{ certification_na_hosts | map(attribute='host') | join(', ') if certification_na_hosts else 'none' }}"
+- "OVERALL RESULT        : {{ overall }}"
+- "======================================================================"

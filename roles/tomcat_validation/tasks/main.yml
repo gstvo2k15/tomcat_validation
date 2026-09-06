@@ -1,0 +1,49 @@
+---
+- name: Validate survey input and platform
+  ansible.builtin.include_tasks: validate.yml
+
+- name: Mark unsupported host JDK combinations
+  ansible.builtin.set_fact:
+    validation_result: "NOT_APPLICABLE"
+    validation_failure: >-
+      JDK {{ selected_jdk_major }} certification is not enabled for
+      RHEL {{ ansible_distribution_major_version }}.
+  when: not validation_platform_supported
+
+- name: Execute Tomcat JDK certification
+  when: validation_platform_supported
+  block:
+    - name: Resolve latest artifacts
+      ansible.builtin.include_tasks: artifactory.yml
+
+    - name: Install selected JDK and Tomcat RPMs
+      ansible.builtin.include_tasks: install.yml
+
+    - name: Discover installed paths and Tomcat service
+      ansible.builtin.include_tasks: discover.yml
+
+    - name: Configure setenv sh
+      ansible.builtin.include_tasks: configure.yml
+
+    - name: Restart and validate Tomcat
+      ansible.builtin.include_tasks: validate_runtime.yml
+
+    - name: Mark host validation successful
+      ansible.builtin.set_fact:
+        validation_result: "PASS"
+        validation_failure: ""
+
+  rescue:
+    - name: Capture certification failure
+      ansible.builtin.set_fact:
+        validation_result: "FAIL"
+        validation_failure: >-
+          {{
+            ansible_failed_result.msg
+            | default(ansible_failed_result.stderr
+            | default(ansible_failed_result.exception
+            | default('Unknown validation failure')))
+          }}
+
+- name: Build host certification report
+  ansible.builtin.include_tasks: host_report.yml

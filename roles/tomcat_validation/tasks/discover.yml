@@ -1,0 +1,60 @@
+---
+- name: Locate Java executable installed by selected RPM
+  ansible.builtin.shell: |
+    set -o pipefail
+    rpm -ql {{ selected_jdk_package | quote }} \
+      | grep -E '^{{ java_install_root | regex_escape }}/.*/bin/java$' \
+      | head -1
+  args:
+    executable: /bin/bash
+  register: discovered_java_bin
+  changed_when: false
+  failed_when: discovered_java_bin.rc != 0 or discovered_java_bin.stdout | length == 0
+
+- name: Derive JAVA HOME
+  ansible.builtin.set_fact:
+    selected_java_home: "{{ discovered_java_bin.stdout | dirname | dirname }}"
+
+- name: Locate setenv sh installed by selected Tomcat RPM
+  ansible.builtin.shell: |
+    set -o pipefail
+    rpm -ql {{ selected_tomcat_package | quote }} \
+      | grep -E '/bin/setenv\.sh$' \
+      | head -1
+  args:
+    executable: /bin/bash
+  register: discovered_setenv
+  changed_when: false
+  failed_when: discovered_setenv.rc != 0 or discovered_setenv.stdout | length == 0
+
+- name: Derive Tomcat home from setenv sh
+  ansible.builtin.set_fact:
+    tomcat_setenv: "{{ discovered_setenv.stdout }}"
+    selected_tomcat_home: "{{ discovered_setenv.stdout | dirname | dirname }}"
+
+- name: Gather system services
+  ansible.builtin.service_facts:
+
+- name: Find matching Tomcat services
+  ansible.builtin.set_fact:
+    discovered_tomcat_services: >-
+      {{
+        ansible_facts.services
+        | dict2items
+        | selectattr('key', 'match', tomcat_service_regex)
+        | map(attribute='key')
+        | list
+      }}
+
+- name: Validate discovered service count
+  ansible.builtin.assert:
+    that:
+      - discovered_tomcat_services | length > 0
+      - (not require_single_tomcat_service) or (discovered_tomcat_services | length == 1)
+    fail_msg: >-
+      Expected {{ 'exactly one' if require_single_tomcat_service else 'at least one' }}
+      service matching {{ tomcat_service_regex }}; found {{ discovered_tomcat_services }}.
+
+- name: Select Tomcat service
+  ansible.builtin.set_fact:
+    selected_tomcat_service: "{{ discovered_tomcat_services | first }}"

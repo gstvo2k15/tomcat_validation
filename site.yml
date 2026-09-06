@@ -1,0 +1,65 @@
+---
+- name: Certify latest Tomcat and JDK RPMs from Artifactory
+  hosts: tomcat_lab
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: tomcat_validation
+
+- name: Publish consolidated certification report
+  hosts: localhost
+  gather_facts: false
+  vars:
+    certification_group: "tomcat_lab"
+  tasks:
+    - name: Build consolidated report data
+      ansible.builtin.set_fact:
+        certification_reports: >-
+          {{
+            groups[certification_group]
+            | map('extract', hostvars, 'tomcat_validation_host_report')
+            | select('defined')
+            | list
+          }}
+
+    - name: Validate that all lab hosts produced a report
+      ansible.builtin.assert:
+        that:
+          - certification_reports | length == groups[certification_group] | length
+        fail_msg: >-
+          Not every host produced tomcat_validation_host_report.
+          Expected={{ groups[certification_group] | length }}, got={{ certification_reports | length }}.
+
+    - name: Derive aggregate result
+      ansible.builtin.set_fact:
+        certification_failed_hosts: "{{ certification_reports | selectattr('result', 'equalto', 'FAIL') | list }}"
+        certification_passed_hosts: "{{ certification_reports | selectattr('result', 'equalto', 'PASS') | list }}"
+        certification_na_hosts: "{{ certification_reports | selectattr('result', 'equalto', 'NOT_APPLICABLE') | list }}"
+
+    - name: Build Tower-friendly report lines
+      ansible.builtin.set_fact:
+        certification_report_lines: >-
+          {{ lookup('template', 'roles/tomcat_validation/templates/consolidated_report_lines.j2') | from_yaml }}
+
+    - name: TOMCAT JDK CERTIFICATION REPORT
+      ansible.builtin.debug:
+        msg: "{{ certification_report_lines }}"
+
+    - name: Publish certification artifacts to AAP Tower
+      ansible.builtin.set_stats:
+        data:
+          tomcat_certification:
+            requested: "{{ hostvars[groups[certification_group][0]].tomcat_jdk_choice | default('n/a') }}"
+            overall_result: "{{ 'FAIL' if certification_failed_hosts | length > 0 else ('PASS' if certification_passed_hosts | length > 0 else 'NOT_APPLICABLE') }}"
+            hosts: "{{ certification_reports }}"
+          tomcat_certification_report: "{{ certification_report_lines }}"
+        per_host: false
+
+    - name: Mark certification job failed when an applicable host failed
+      ansible.builtin.fail:
+        msg: >-
+          Tomcat/JDK certification failed on:
+          {{ certification_failed_hosts | map(attribute='host') | join(', ') }}.
+          See TOMCAT JDK CERTIFICATION REPORT above.
+      when: certification_failed_hosts | length > 0

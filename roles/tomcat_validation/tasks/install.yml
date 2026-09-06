@@ -1,0 +1,48 @@
+---
+- name: Create RPM cache directory
+  ansible.builtin.file:
+    path: "{{ rpm_cache_dir }}"
+    state: directory
+    mode: '0750'
+
+- name: Download selected JDK RPM
+  ansible.builtin.get_url:
+    url: "{{ selected_jdk_rpm_url }}"
+    dest: "{{ rpm_cache_dir }}/{{ selected_jdk_rpm_name }}"
+    headers: "{{ artifactory_headers }}"
+    validate_certs: "{{ artifactory_validate_certs }}"
+    mode: '0640'
+  no_log: "{{ artifactory_headers | length > 0 }}"
+
+- name: Download selected Tomcat RPM
+  ansible.builtin.get_url:
+    url: "{{ selected_tomcat_rpm_url }}"
+    dest: "{{ rpm_cache_dir }}/{{ selected_tomcat_rpm_name }}"
+    headers: "{{ artifactory_headers }}"
+    validate_certs: "{{ artifactory_validate_certs }}"
+    mode: '0640'
+  no_log: "{{ artifactory_headers | length > 0 }}"
+
+- name: Install selected JDK RPM
+  ansible.builtin.dnf:
+    name: "{{ rpm_cache_dir }}/{{ selected_jdk_rpm_name }}"
+    state: present
+    disable_gpg_check: "{{ dnf_disable_gpg_check }}"
+    allow_downgrade: "{{ dnf_allow_downgrade }}"
+
+- name: Install selected Tomcat RPM
+  ansible.builtin.dnf:
+    name: "{{ rpm_cache_dir }}/{{ selected_tomcat_rpm_name }}"
+    state: present
+    disable_gpg_check: "{{ dnf_disable_gpg_check }}"
+    allow_downgrade: "{{ dnf_allow_downgrade }}"
+
+- name: Read installed JDK NEVRA
+  ansible.builtin.command: "rpm -q {{ selected_jdk_package }}"
+  register: installed_jdk_nevra
+  changed_when: false
+
+- name: Read installed Tomcat NEVRA
+  ansible.builtin.command: "rpm -q {{ selected_tomcat_package }}"
+  register: installed_tomcat_nevra
+  changed_when: false

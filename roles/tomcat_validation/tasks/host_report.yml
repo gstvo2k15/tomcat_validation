@@ -1,0 +1,36 @@
+---
+- name: Build per host report structure
+  ansible.builtin.set_fact:
+    tomcat_validation_host_report:
+      host: "{{ inventory_hostname }}"
+      expected_rhel: "{{ expected_rhel_major | default('n/a') }}"
+      detected_rhel: "{{ ansible_distribution_major_version | default('n/a') }}"
+      detected_distribution: "{{ ansible_distribution | default('n/a') }}"
+      requested: "{{ tomcat_jdk_choice | default('n/a') }}"
+      tomcat: "{{ selected_tomcat_major | default('n/a') }}"
+      jdk: "{{ selected_jdk_major | default('n/a') }}"
+      result: "{{ validation_result | default('FAIL') }}"
+      failure: "{{ validation_failure | default('') }}"
+      artifactory_repo: "{{ selected_artifactory_repo | default('n/a') }}"
+      artifactory_url: >-
+        {{ artifactory_base_url ~ '/' ~ selected_artifactory_repo
+           if selected_artifactory_repo is defined else 'n/a' }}
+      tomcat_rpm: "{{ selected_tomcat_rpm_name | default('n/a') }}"
+      jdk_rpm: "{{ selected_jdk_rpm_name | default('n/a') }}"
+      installed_tomcat: "{{ installed_tomcat_nevra.stdout | default('n/a') }}"
+      installed_jdk: "{{ installed_jdk_nevra.stdout | default('n/a') }}"
+      java_home: "{{ selected_java_home | default('n/a') }}"
+      tomcat_home: "{{ selected_tomcat_home | default('n/a') }}"
+      setenv: "{{ tomcat_setenv | default('n/a') }}"
+      setenv_backup: "{{ setenv_backup_file | default('n/a') }}"
+      service: "{{ selected_tomcat_service | default('n/a') }}"
+      service_state: "{{ tomcat_active.stdout | default('n/a') }}"
+      main_pid: "{{ tomcat_mainpid.stdout | default('n/a') }}"
+      process_java: "{{ tomcat_process_java.stdout | default('n/a') }}"
+      http_status: "{{ tomcat_http_result.status | default('n/a') }}"
+      java_version: >-
+        {{
+          (selected_java_version.stderr
+           | default(selected_java_version.stdout | default('n/a')))
+          | trim
+        }}

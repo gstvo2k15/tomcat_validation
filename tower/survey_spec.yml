@@ -1,0 +1,20 @@
+---
+# Configure this as ONE "Multiple Choice (single select)" survey question.
+question_name: "Select Tomcat/JDK version to install"
+question_description: "Certify latest internal Tomcat and JDK RPMs on the RHEL8/RHEL9 lab hosts"
+variable: "tomcat_jdk_choice"
+type: "multiplechoice"
+required: true
+choices:
+  - "Tomcat9 - JDK8"
+  - "Tomcat9 - JDK11"
+  - "Tomcat9 - JDK17"
+  - "Tomcat9 - JDK21"
+  - "Tomcat9 - JDK25 (RHEL9 only)"
+  - "Tomcat10 - JDK11"
+  - "Tomcat10 - JDK17"
+  - "Tomcat10 - JDK21"
+  - "Tomcat10 - JDK25 (RHEL9 only)"
+  - "Tomcat11 - JDK17"
+  - "Tomcat11 - JDK21"
+  - "Tomcat11 - JDK25 (RHEL9 only)"

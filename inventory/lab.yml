@@ -1,0 +1,9 @@
+---
+all:
+  children:
+    tomcat_lab:
+      hosts:
+        eurvxxx01:
+          expected_rhel_major: "8"
+        eurvxxx02:
+          expected_rhel_major: "9"

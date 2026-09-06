@@ -1,0 +1,78 @@
+---
+artifactory_base_url: "https://artifactory.test"
+
+# These values are repository keys, not full URLs.
+artifactory_repo_by_rhel:
+  "8": "8"
+  "9": "9"
+
+# Inject authentication from an AAP custom credential when required.
+# Example: {"Authorization": "Bearer ..."}
+artifactory_headers: {}
+artifactory_validate_certs: true
+
+# Adapt these package prefixes to the real internal RPM names.
+tomcat_package_by_major:
+  "9": "mdw-asf-tomcat9"
+  "10": "mdw-asf-tomcat10"
+  "11": "mdw-asf-tomcat11"
+
+jdk_package_by_major:
+  "8": "mdw-asf-jdk8"
+  "11": "mdw-asf-jdk11"
+  "17": "mdw-asf-jdk17"
+  "21": "mdw-asf-jdk21"
+  "25": "mdw-asf-jdk25"
+
+# Tomcat minimum supported Java major.
+tomcat_min_java:
+  "9": 8
+  "10": 11
+  "11": 17
+
+# Local certification policy: JDK25 is tested only on RHEL9.
+jdk_allowed_rhel:
+  "8": ["8", "9"]
+  "11": ["8", "9"]
+  "17": ["8", "9"]
+  "21": ["8", "9"]
+  "25": ["9"]
+
+java_install_root: "/apps/install/java"
+
+# Service discovery. Escape only once in YAML single quotes.
+tomcat_service_regex: '^tomcat-DEV.*\.service$'
+require_single_tomcat_service: true
+
+# HTTP validation.
+tomcat_validation_url: "http://127.0.0.1:8080/"
+tomcat_valid_http_codes: [200, 301, 302, 401, 403]
+tomcat_http_retries: 12
+tomcat_http_delay: 5
+
+# Local RPM cache.
+rpm_cache_dir: "/var/tmp/tomcat-certification"
+dnf_disable_gpg_check: false
+dnf_allow_downgrade: true
+
+# setenv.sh.
+manage_catalina_home: true
+setenv_backup: true
+
+# Optional recent-log scan. Empty string disables it.
+tomcat_log_error_regex: '(SEVERE|OutOfMemoryError|UnsupportedClassVersionError|Could not create the Java Virtual Machine|Exception in thread "main")'
+
+# One-question AAP/Tower survey.
+survey_choice_matrix:
+  "Tomcat9 - JDK8": {tomcat: "9", jdk: "8"}
+  "Tomcat9 - JDK11": {tomcat: "9", jdk: "11"}
+  "Tomcat9 - JDK17": {tomcat: "9", jdk: "17"}
+  "Tomcat9 - JDK21": {tomcat: "9", jdk: "21"}
+  "Tomcat9 - JDK25 (RHEL9 only)": {tomcat: "9", jdk: "25"}
+  "Tomcat10 - JDK11": {tomcat: "10", jdk: "11"}
+  "Tomcat10 - JDK17": {tomcat: "10", jdk: "17"}
+  "Tomcat10 - JDK21": {tomcat: "10", jdk: "21"}
+  "Tomcat10 - JDK25 (RHEL9 only)": {tomcat: "10", jdk: "25"}
+  "Tomcat11 - JDK17": {tomcat: "11", jdk: "17"}
+  "Tomcat11 - JDK21": {tomcat: "11", jdk: "21"}
+  "Tomcat11 - JDK25 (RHEL9 only)": {tomcat: "11", jdk: "25"}
